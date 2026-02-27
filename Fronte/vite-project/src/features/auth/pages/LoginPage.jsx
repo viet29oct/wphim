@@ -1,19 +1,33 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
+import authService from '../../../services/authService';
 
 const LoginPage = () => {
-    const [form, setForm] = useState({ email: '', password: '' });
+    const navigate = useNavigate();
+    const [form, setForm] = useState({ username: '', password: '' });
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        setError(''); // Xóa lỗi khi user gõ lại
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // goi API dang nhap
-        console.log(form);
+        setLoading(true);
+        setError('');
+        try {
+            await authService.login(form.username, form.password);
+            navigate('/'); // Đăng nhập thành công → về trang chủ
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -25,16 +39,22 @@ const LoginPage = () => {
                     <p>Chào mừng bạn trở lại với MyCinema!</p>
                 </div>
 
+                {error && (
+                    <div className="error-alert">
+                        {error}
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
-                        <label htmlFor="email">Email</label>
+                        <label htmlFor="username">Tên đăng nhập</label>
                         <input
-                            id="email"
-                            type="email"
-                            name="email"
-                            value={form.email}
+                            id="username"
+                            type="text"
+                            name="username"
+                            value={form.username}
                             onChange={handleChange}
-                            placeholder="Nhập địa chỉ email..."
+                            placeholder="Nhập tên đăng nhập..."
                             required
                         />
                     </div>
@@ -56,7 +76,7 @@ const LoginPage = () => {
                                 className="toggle-pw"
                                 onClick={() => setShowPassword(!showPassword)}
                             >
-                                {showPassword ? '-.-' : '👁'}
+                                {showPassword ? '🙈' : '👁'}
                             </button>
                         </div>
                     </div>
@@ -65,8 +85,8 @@ const LoginPage = () => {
                         <a href="#" className="forgot-link">Quên mật khẩu?</a>
                     </div>
 
-                    <button type="submit" className="btn-submit">
-                        ĐĂNG NHẬP
+                    <button type="submit" className="btn-submit" disabled={loading}>
+                        {loading ? 'ĐANG ĐĂNG NHẬP...' : 'ĐĂNG NHẬP'}
                     </button>
 
                     <div className="or-divider">hoặc đăng nhập với</div>

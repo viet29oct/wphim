@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
+import authService from '../../../services/authService';
 
 const RegisterPage = () => {
+    const navigate = useNavigate();
     const [form, setForm] = useState({
+        username: '',
         fullName: '',
         email: '',
         phone: '',
@@ -11,19 +14,33 @@ const RegisterPage = () => {
         confirmPassword: ''
     });
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
+        setError('');
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (form.password !== form.confirmPassword) {
-            alert('Mật khẩu xác nhận không khớp!');
+            setError('Mật khẩu xác nhận không khớp!');
             return;
         }
-        // goi API dang ky
-        console.log(form);
+        setLoading(true);
+        setError('');
+        try {
+            await authService.register(form);
+            setSuccess('Đăng ký thành công! Đang chuyển đến trang đăng nhập...');
+            setTimeout(() => navigate('/login'), 1500);
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+            setError(msg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const passwordMatch = form.confirmPassword && form.password === form.confirmPassword;
@@ -38,7 +55,27 @@ const RegisterPage = () => {
                     <p>Tạo tài khoản để đặt vé nhanh hơn!</p>
                 </div>
 
+                {error && <div className="error-alert">{error}</div>}
+                {success && (
+                    <div className="error-alert" style={{ background: '#f0fff4', borderColor: '#2ecc71', color: '#2ecc71' }}>
+                        {success}
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                        <label htmlFor="username">Tên đăng nhập *</label>
+                        <input
+                            id="username"
+                            type="text"
+                            name="username"
+                            value={form.username}
+                            onChange={handleChange}
+                            placeholder="Nhập tên đăng nhập..."
+                            required
+                        />
+                    </div>
+
                     <div className="form-group">
                         <label htmlFor="fullName">Họ và tên</label>
                         <input
@@ -48,12 +85,11 @@ const RegisterPage = () => {
                             value={form.fullName}
                             onChange={handleChange}
                             placeholder="Nhập họ và tên..."
-                            required
                         />
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="email">Email</label>
+                        <label htmlFor="email">Email *</label>
                         <input
                             id="email"
                             type="email"
@@ -78,7 +114,7 @@ const RegisterPage = () => {
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="password">Mật khẩu</label>
+                        <label htmlFor="password">Mật khẩu *</label>
                         <div className="password-wrapper">
                             <input
                                 id="password"
@@ -86,7 +122,7 @@ const RegisterPage = () => {
                                 name="password"
                                 value={form.password}
                                 onChange={handleChange}
-                                placeholder="Tối thiểu 8 ký tự..."
+                                placeholder="Tối thiểu 6 ký tự..."
                                 required
                             />
                             <button
@@ -94,13 +130,13 @@ const RegisterPage = () => {
                                 className="toggle-pw"
                                 onClick={() => setShowPassword(!showPassword)}
                             >
-                                {showPassword ? '-.-' : '👁' }
+                                {showPassword ? '🙈' : '👁'}
                             </button>
                         </div>
                     </div>
 
                     <div className="form-group">
-                        <label htmlFor="confirmPassword">Xác nhận mật khẩu</label>
+                        <label htmlFor="confirmPassword">Xác nhận mật khẩu *</label>
                         <input
                             id="confirmPassword"
                             type="password"
@@ -127,8 +163,8 @@ const RegisterPage = () => {
                         )}
                     </div>
 
-                    <button type="submit" className="btn-submit">
-                        TẠO TÀI KHOẢN
+                    <button type="submit" className="btn-submit" disabled={loading}>
+                        {loading ? 'ĐANG TẠO TÀI KHOẢN...' : 'TẠO TÀI KHOẢN'}
                     </button>
                 </form>
 
