@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: api
+
+  # Cấu hình kết nối MySQL
+  datasource:
+    url: jdbc:mysql://localhost:3306/Cinema_DB?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
+    username: root         # đổi thành username MySQL của bạn
+    password: 12345678 # đổi thành password MySQL của bạn
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # Cấu hình JPA / Hibernate
+  jpa:
+    hibernate:
+      ddl-auto: validate   # validate: kiểm tra schema có khớp entity không
+                           # update: tự sửa schema (dùng khi dev)
+                           # none: không làm gì (dùng khi prod)
+    show-sql: true         # In SQL ra console để debug
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+# Cấu hình JWT
+jwt:
+  secret: mySecretKey1234567890mySecretKey1234567890  # phải đủ 32+ ký tự
+  expiration: 86400000  # 1 ngày = 86400000 ms
+
+# Port server
+server:
+  port: 8080

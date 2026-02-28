@@ -1,9 +1,11 @@
 package team.api.dto.request;
 
-import lombok.Data;
-
-@Data
 public class UpdateProfileRequest {
     private String fullName;
     private String phoneNumber;
+
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getPhoneNumber() { return phoneNumber; }
+    public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
 }

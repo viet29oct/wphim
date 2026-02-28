@@ -1,6 +1,5 @@
 package team.api.config;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,42 +21,29 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity          // cho phép dùng @PreAuthorize trên method
-@RequiredArgsConstructor
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
 
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Tắt CSRF vì dùng JWT (stateless)
             .csrf(AbstractHttpConfigurer::disable)
-
-            // Cấu hình CORS cho phép React frontend gọi API
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-            // Không dùng Session (JWT tự quản lý trạng thái)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-            // Phân quyền endpoint
             .authorizeHttpRequests(auth -> auth
-                // Public: ai cũng truy cập được
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/movies/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/showtimes/**").permitAll()
-
-                // Chỉ admin mới được quản lý
                 .requestMatchers("/api/admin/**").hasRole("admin")
-
-                // Staff và admin
                 .requestMatchers("/api/staff/**").hasAnyRole("admin", "staff")
-
-                // Còn lại phải đăng nhập
                 .anyRequest().authenticated()
             )
-
-            // Thêm JWT filter trước filter mặc định của Spring
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -68,7 +54,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // Cho phép React (localhost:5173) gọi API
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

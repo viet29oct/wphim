@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spring Boot Auth Config Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+        .card { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 5px; }
+        .form-group { margin-bottom: 10px; }
+        input[type="text"], input[type="password"], input[type="email"] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+        button { padding: 10px 15px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 3px; margin-right: 10px;}
+        button:hover { background: #218838; }
+        #responseLog { background: #333; color: #0f0; padding: 15px; border-radius: 5px; min-height: 100px; white-space: pre-wrap; word-wrap: break-word;}
+        .button-danger { background: #dc3545; }
+        .button-danger:hover { background: #c82333; }
+        .button-primary { background: #007bff; }
+        .button-primary:hover { background: #0069d9; }
+    </style>
+</head>
+<body>
+
+    <h2>Test JWT Authentication (Browser)</h2>
+
+    <div class="card">
+        <h3>1. Đăng ký (Register)</h3>
+        <div class="form-group"><input type="text" id="reg-username" placeholder="Username (ít nhất 3 ký tự)"></div>
+        <div class="form-group"><input type="email" id="reg-email" placeholder="Email (ví dụ: test@abc.com)"></div>
+        <div class="form-group"><input type="password" id="reg-password" placeholder="Password (ít nhất 6 ký tự)"></div>
+        <button onclick="register()">Gửi Register API</button>
+    </div>
+
+    <div class="card">
+        <h3>2. Đăng nhập (Login)</h3>
+        <div class="form-group"><input type="text" id="login-username" placeholder="Username"></div>
+        <div class="form-group"><input type="password" id="login-password" placeholder="Password"></div>
+        <button class="button-primary" onclick="login()">Gửi Login API</button>
+        <button class="button-danger" onclick="logout()">Logout (Xóa Token)</button>
+    </div>
+
+    <div class="card">
+        <h3>3. Test Endpoint cần Token (Ví dụ: /api/test)</h3>
+        <p><i>Token hiện tại:</i> <span id="currentToken" style="color: blue; font-size: 13px;">Chưa có</span></p>
+        <button onclick="testProtectedEndpoint()">Gọi API được bảo vệ</button>
+    </div>
+
+    <div class="card">
+        <h3>Console / Kết quả (<button style="padding: 2px 5px; font-size: 12px;" onclick="document.getElementById('responseLog').innerText = ''">Clear</button>)</h3>
+        <div id="responseLog"></div>
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8080/api/auth";
+
+        function log(message) {
+            const logDiv = document.getElementById('responseLog');
+            logDiv.innerText = typeof message === 'object' ? JSON.stringify(message, null, 2) : message;
+        }
+
+        function getAuthHeaders() {
+            const token = localStorage.getItem("accessToken");
+            return token ? { "Authorization": `Bearer ${token}` } : {};
+        }
+
+        function updateTokenDisplay() {
+            const token = localStorage.getItem("accessToken");
+            document.getElementById('currentToken').innerText = token ? `${token.substring(0, 20)}...` : "Chưa có";
+        }
+
+        // Auto chạy khi mở trang
+        updateTokenDisplay();
+
+        async function register() {
+            const username = document.getElementById("reg-username").value;
+            const email = document.getElementById("reg-email").value;
+            const password = document.getElementById("reg-password").value;
+
+            try {
+                const res = await fetch(`${API_BASE}/register`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const data = await res.json();
+                if(res.ok) log(`[REGISTER THÀNH CÔNG]\n${JSON.stringify(data, null, 2)}`);
+                else log(`[REGISTER LỖI ${res.status}]\n${JSON.stringify(data, null, 2)}`);
+            } catch (error) { log("Lỗi kết nối Server: " + error.message); }
+        }
+
+        async function login() {
+            const username = document.getElementById("login-username").value;
+            const password = document.getElementById("login-password").value;
+
+            try {
+                const res = await fetch(`${API_BASE}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                
+                if (res.ok && data.accessToken) {
+                    localStorage.setItem("accessToken", data.accessToken);
+                    updateTokenDisplay();
+                    log(`[LOGIN THÀNH CÔNG]\nĐã lưu token vào LocalStorage.\n${JSON.stringify(data, null, 2)}`);
+                } else {
+                    log(`[LOGIN LỖI ${res.status}]\n${JSON.stringify(data, null, 2)}`);
+                }
+            } catch (error) { log("Lỗi kết nối Server: " + error.message); }
+        }
+
+        function logout() {
+            localStorage.removeItem("accessToken");
+            updateTokenDisplay();
+            log("[LOGOUT]\nĐã xóa accessToken trong LocalStorage!");
+        }
+
+        async function testProtectedEndpoint() {
+            // Cần tạo 1 Dummy Endpoint /api/auth/profile hoặc /api/test bên trong Springboot để test.
+            // Do endpoint /api/auth/** ở ứng dụng đang permitAll() nên ta test thử cách chặn của Security:
+            try {
+                // Gọi thử bừa 1 endpoint không nằm trong /api/auth/** để test security
+                const res = await fetch(`http://localhost:8080/api/some-protected-data`, {
+                    method: "GET", // Hoặc Post
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...getAuthHeaders()
+                    }
+                });
+                
+                if (res.status === 401) {
+                    log("[LỖI 401 UNAUTHORIZED]\nBạn chưa đăng nhập hoặc Token đã hết hạn / không hợp lệ.");
+                } else if (res.status === 403) {
+                    log("[LỖI 403 FORBIDDEN]\nBạn không có quyền truy cập endpoint này.");
+                } else if (res.status === 404) {
+                    log("[LỖI 404 NOT FOUND]\nLỗi này do API /api/some-protected-data chưa được định nghĩa trong controller, nhưng vì vượt qua được Auth Filter (Không bị 401) nên trả về 404. Chứng tỏ TOKEN HỢP LỆ!");
+                } else {
+                    const text = await res.text();
+                    log(`[THÀNH CÔNG ${res.status}]\nHệ thống xác nhận Token hợp lệ.\n${text}`);
+                }
+            } catch (error) { log("Lỗi kết nối Server: " + error.message); }
+        }
+    </script>
+</body>
+</html>
