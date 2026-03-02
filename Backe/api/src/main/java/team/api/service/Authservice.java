@@ -1,65 +1,69 @@
 package team.api.service;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import team.api.dto.request.LoginRequest;
 import team.api.dto.request.RegisterRequest;
 import team.api.dto.response.AuthResponse;
-import team.api.dto.response.UserResponse;
 import team.api.entity.User;
 import team.api.repository.UserRepository;
+import team.api.security.CustomUserDetails;
 import team.api.security.JwtUtil;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final AuthenticationManager authenticationManager;
 
-    public AuthService(UserRepository userRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
-    }
-
-    public UserResponse register(RegisterRequest request) {
+    @Transactional
+    public String register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Username '" + request.getUsername() + "' đã được sử dụng");
+            throw new RuntimeException("Error: Username is already taken!");
         }
+
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email '" + request.getEmail() + "' đã được sử dụng");
+            throw new RuntimeException("Error: Email is already in use!");
         }
 
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .phoneNumber(request.getPhoneNumber())
-                .role(User.Role.customer)
+                .password(passwordEncoder.encode(request.getPassword()))
+                .role("ROLE_USER")
                 .build();
 
-        User saved = userRepository.save(user);
-        return UserResponse.fromEntity(saved);
+        userRepository.save(user);
+
+        return "User registered successfully!";
     }
 
     public AuthResponse login(LoginRequest request) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.getUsername(),
+                        request.getPassword()
+                )
+        );
+
         User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new IllegalArgumentException("Username hoặc mật khẩu không đúng"));
+                .orElseThrow(() -> new RuntimeException("Error: User not found."));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Username hoặc mật khẩu không đúng");
-        }
-
-        String token = jwtUtil.generateToken(user.getUsername(), user.getRole().name());
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        String jwtToken = jwtUtil.generateToken(userDetails);
+        long expiresIn = jwtUtil.getExpirationDate(jwtToken).getTime() - System.currentTimeMillis();
 
         return AuthResponse.builder()
-                .token(token)
+                .accessToken(jwtToken)
                 .tokenType("Bearer")
-                .user(UserResponse.fromEntity(user))
+                .expiresIn(expiresIn)
                 .build();
     }
 }

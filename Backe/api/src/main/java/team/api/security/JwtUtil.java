@@ -1,64 +1,88 @@
 package team.api.security;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
 @Component
 public class JwtUtil {
 
-    // Lấy từ application.yaml: jwt.secret và jwt.expiration
     @Value("${jwt.secret}")
-    private String secret;
+    private String secretKey;
 
     @Value("${jwt.expiration}")
-    private long expirationMs; // milliseconds, ví dụ 86400000 = 1 ngày
+    private long expirationTime;
 
-    private SecretKey getKey() {
-        return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    }
-
-    // Tạo token từ username
-    public String generateToken(String username, String role) {
-        return Jwts.builder()
-                .subject(username)
-                .claim("role", role)                      // nhúng role vào token
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(getKey())
-                .compact();
-    }
-
-    // Lấy username từ token
+    // extractUsername(String token)
     public String extractUsername(String token) {
-        return getClaims(token).getSubject();
+        return extractClaim(token, Claims::getSubject);
     }
 
-    // Lấy role từ token
-    public String extractRole(String token) {
-        return getClaims(token).get("role", String.class);
+    // getExpirationDate(token)
+    public Date getExpirationDate(String token) {
+        return extractClaim(token, Claims::getExpiration);
     }
 
-    // Kiểm tra token còn hợp lệ không
-    public boolean isTokenValid(String token) {
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(getSignInKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private SecretKey getSignInKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    // validateToken(String token)
+    public boolean validateToken(String token) {
         try {
-            getClaims(token); // nếu hết hạn hoặc sai chữ ký → throw exception
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
             return false;
         }
     }
 
-    private Claims getClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(getKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+    private boolean isTokenExpired(String token) {
+        return getExpirationDate(token).before(new Date());
+    }
+
+    // generateToken(UserDetails userDetails)
+    public String generateToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        
+        if (userDetails instanceof CustomUserDetails customUserDetails) {
+            claims.put("userId", customUserDetails.getId());
+            claims.put("role", customUserDetails.getRole());
+        }
+        
+        return buildToken(claims, userDetails.getUsername(), expirationTime);
+    }
+
+    private String buildToken(Map<String, Object> extraClaims, String subject, long expiration) {
+        return Jwts.builder()
+                .claims(extraClaims)
+                .subject(subject)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSignInKey())
+                .compact();
     }
 }
